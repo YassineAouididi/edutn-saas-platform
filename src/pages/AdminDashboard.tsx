@@ -4,13 +4,17 @@ import {
   LayoutDashboard, FileText, CheckCircle, XCircle,
   Clock, BarChart3, Settings, BookOpen, Download,
   Eye, Tag, Upload, FileUp, X, AlertCircle, Users,
-  Pencil, Trash2, Search, Shield, UserCheck, UserX,
+  Pencil, Trash2, Search, Shield, UserCheck, UserX, Plus,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { DatabaseDocument, DatabaseSubject, DatabaseGrade, DatabaseStream, DatabaseCategory, DatabaseUser } from '@/lib/types';
 import {
   getAllDocuments, getSubjects, getGrades, getStreams, getCategories, updateDocumentStatus, createDocument,
   getAllUsers, updateUser, deleteUser, updateDocument, deleteDocument,
+  createSubject, updateSubject, deleteSubject,
+  createGrade, updateGrade, deleteGrade,
+  createStream, updateStream, deleteStream,
+  createCategory, updateCategory, deleteCategory,
 } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/ui/Card';
@@ -58,6 +62,12 @@ export function AdminDashboard() {
   // Search
   const [docSearch, setDocSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
+
+  // CRUD management
+  const [crudTab, setCrudTab] = useState<'categories' | 'subjects' | 'grades' | 'streams' | null>(null);
+  const [showCrudModal, setShowCrudModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ id: string; [key: string]: string | number | boolean | null } | null>(null);
+  const [crudItemToDelete, setCrudItemToDelete] = useState<{ id: string; name: string; type: string } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/login');
@@ -239,6 +249,98 @@ export function AdminDashboard() {
     }
     setDeleteTarget(null);
   }
+
+  async function handleCrudSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!crudTab || !user) return;
+    const form = e.target as HTMLFormElement;
+    const fd = new FormData(form);
+
+    const getData = () => ({
+      name: fd.get('name') as string,
+      slug: fd.get('slug') as string,
+      ...(crudTab === 'subjects' && { 
+        description: (fd.get('description') as string) || null,
+        icon: (fd.get('icon') as string) || null,
+        color: (fd.get('color') as string) || null,
+      }),
+      ...(crudTab === 'grades' && { level: parseInt(fd.get('level') as string) || 0 }),
+      ...(crudTab === 'categories' && { 
+        description: (fd.get('description') as string) || null,
+        icon: (fd.get('icon') as string) || null,
+      }),
+    });
+
+    try {
+      if (editingItem) {
+        // Update
+        if (crudTab === 'subjects') {
+          const updated = await updateSubject(editingItem.id, getData());
+          if (updated) setSubjects(subjects.map(s => s.id === updated.id ? updated : s));
+        } else if (crudTab === 'grades') {
+          const updated = await updateGrade(editingItem.id, getData() as any);
+          if (updated) setGrades(grades.map(g => g.id === updated.id ? updated : g));
+        } else if (crudTab === 'streams') {
+          const updated = await updateStream(editingItem.id, getData());
+          if (updated) setStreams(streams.map(s => s.id === updated.id ? updated : s));
+        } else if (crudTab === 'categories') {
+          const updated = await updateCategory(editingItem.id, getData() as any);
+          if (updated) setCategories(categories.map(c => c.id === updated.id ? updated : c));
+        }
+      } else {
+        // Create
+        if (crudTab === 'subjects') {
+          const created = await createSubject(getData() as any);
+          if (created) setSubjects([...subjects, created]);
+        } else if (crudTab === 'grades') {
+          const created = await createGrade(getData() as any);
+          if (created) setGrades([...grades, created]);
+        } else if (crudTab === 'streams') {
+          const created = await createStream(getData() as any);
+          if (created) setStreams([...streams, created]);
+        } else if (crudTab === 'categories') {
+          const created = await createCategory(getData() as any);
+          if (created) setCategories([...categories, created]);
+        }
+      }
+      setShowCrudModal(false);
+      setEditingItem(null);
+      form.reset();
+    } catch (err) {
+      console.error('CRUD error:', err);
+    }
+  }
+
+  async function confirmCrudDelete() {
+    if (!crudItemToDelete) return;
+    try {
+      let ok = false;
+      if (crudItemToDelete.type === 'subject') {
+        ok = await deleteSubject(crudItemToDelete.id);
+        if (ok) setSubjects(subjects.filter(s => s.id !== crudItemToDelete.id));
+      } else if (crudItemToDelete.type === 'grade') {
+        ok = await deleteGrade(crudItemToDelete.id);
+        if (ok) setGrades(grades.filter(g => g.id !== crudItemToDelete.id));
+      } else if (crudItemToDelete.type === 'stream') {
+        ok = await deleteStream(crudItemToDelete.id);
+        if (ok) setStreams(streams.filter(s => s.id !== crudItemToDelete.id));
+      } else if (crudItemToDelete.type === 'category') {
+        ok = await deleteCategory(crudItemToDelete.id);
+        if (ok) setCategories(categories.filter(c => c.id !== crudItemToDelete.id));
+      }
+      setCrudItemToDelete(null);
+    } catch (err) {
+      console.error('Delete error:', err);
+    }
+  }
+
+  const getCrudData = () => {
+    if (crudTab === 'subjects') return subjects;
+    if (crudTab === 'grades') return grades;
+    if (crudTab === 'streams') return streams;
+    if (crudTab === 'categories') return categories;
+    return [];
+  };
 
   if (authLoading || !user) return null;
 
@@ -625,15 +727,73 @@ export function AdminDashboard() {
             )}
 
             {(tab === 'categories' || tab === 'subjects' || tab === 'grades' || tab === 'streams') && (
-              <CRUDView
-                title={tab.charAt(0).toUpperCase() + tab.slice(1)}
-                items={
-                  tab === 'categories' ? categories :
-                  tab === 'subjects' ? subjects :
-                  tab === 'grades' ? grades :
-                  streams
-                }
-              />
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold">{tab.charAt(0).toUpperCase() + tab.slice(1)} ({getCrudData().length})</h2>
+                  <Button onClick={() => { setCrudTab(tab); setEditingItem(null); setShowCrudModal(true); }}>
+                    <Plus className="h-4 w-4" /> Add {tab.slice(0, -1)}
+                  </Button>
+                </div>
+
+                {getCrudData().length === 0 ? (
+                  <EmptyState icon={<Tag className="h-12 w-12" />} title={`No ${tab} found`} description={`Create your first ${tab.slice(0, -1)}`} />
+                ) : (
+                  <Card className="overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                          <tr>
+                            <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">Name</th>
+                            <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">Slug</th>
+                            {tab === 'subjects' && <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">Color</th>}
+                            {tab === 'grades' && <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">Level</th>}
+                            <th className="text-right px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                          {getCrudData().map((item: any) => (
+                            <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                              <td className="px-4 py-3 text-gray-900 dark:text-gray-100">{item.name}</td>
+                              <td className="px-4 py-3 text-gray-500">{item.slug}</td>
+                              {tab === 'subjects' && (
+                                <td className="px-4 py-3">
+                                  {item.color ? (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-4 h-4 rounded" style={{ backgroundColor: item.color }} />
+                                      <span className="text-xs text-gray-500">{item.color}</span>
+                                    </div>
+                                  ) : <span className="text-xs text-gray-400">—</span>}
+                                </td>
+                              )}
+                              {tab === 'grades' && <td className="px-4 py-3 text-gray-500">{item.level}</td>}
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    onClick={() => { setCrudTab(tab); setEditingItem(item); setShowCrudModal(true); }}
+                                    title="Edit"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    onClick={() => setCrudItemToDelete({ id: item.id, name: item.name, type: tab.slice(0, -1) })}
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-error-500" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -671,36 +831,60 @@ export function AdminDashboard() {
           </div>
         </div>
       </Modal>
+
+      <Modal isOpen={showCrudModal && crudTab !== null} onClose={() => { setShowCrudModal(false); setEditingItem(null); }} title={`${editingItem ? 'Edit' : 'Add'} ${crudTab ? crudTab.slice(0, -1) : ''}`} size="lg">
+        <form onSubmit={handleCrudSave} className="space-y-4">
+          <Input label="Name" name="name" required placeholder="e.g., Mathematics" defaultValue={String(editingItem?.name ?? '')} />
+          <Input label="Slug" name="slug" required placeholder="e.g., mathematics" defaultValue={String(editingItem?.slug ?? '')} />
+          
+          {crudTab === 'subjects' && (
+            <>
+              <Input label="Description" name="description" placeholder="Subject description" defaultValue={String(editingItem?.description ?? '')} />
+              <Input label="Color" name="color" type="color" placeholder="#3B82F6" defaultValue={String(editingItem?.color ?? '#3B82F6')} />
+              <Input label="Icon" name="icon" placeholder="Icon name or emoji" defaultValue={String(editingItem?.icon ?? '')} />
+            </>
+          )}
+          
+          {crudTab === 'grades' && (
+            <Input label="Level" name="level" type="number" required placeholder="e.g., 1" defaultValue={String(editingItem?.level ?? 0)} />
+          )}
+          
+          {crudTab === 'categories' && (
+            <>
+              <Input label="Description" name="description" placeholder="Category description" defaultValue={String(editingItem?.description ?? '')} />
+              <Input label="Icon" name="icon" placeholder="Icon name or emoji" defaultValue={String(editingItem?.icon ?? '')} />
+            </>
+          )}
+          
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowCrudModal(false); setEditingItem(null); }}>Cancel</Button>
+            <Button type="submit" className="flex-1">{editingItem ? 'Save Changes' : 'Create'}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={crudItemToDelete !== null} onClose={() => setCrudItemToDelete(null)} title="Confirm Delete" size="sm">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-error-100 dark:bg-error-900/30 flex items-center justify-center">
+              <Trash2 className="h-6 w-6 text-error-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Delete this {crudItemToDelete?.type}?</p>
+              <p className="text-xs text-gray-500">"{crudItemToDelete?.name}"</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            This action cannot be undone. This {crudItemToDelete?.type} will be permanently removed.
+          </p>
+          <div className="flex gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => setCrudItemToDelete(null)}>Cancel</Button>
+            <Button variant="danger" className="flex-1" onClick={confirmCrudDelete}>Delete</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function CRUDView({ title, items }: { title: string; items: { id: string; name: string; slug: string }[] }) {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">{title} ({items.length})</h2>
-      </div>
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">Name</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">Slug</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {items.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="px-4 py-3 text-gray-900 dark:text-gray-100">{item.name}</td>
-                  <td className="px-4 py-3 text-gray-500">{item.slug}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  );
-}
+

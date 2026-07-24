@@ -523,3 +523,169 @@ export async function deleteDocument(id: string): Promise<boolean> {
   const rows = await sql`DELETE FROM documents WHERE id = ${id} RETURNING id`;
   return rows.length > 0;
 }
+
+// ===================== ADMIN: SUBJECT MANAGEMENT =====================
+
+export async function createSubject(data: {
+  name: string;
+  slug: string;
+  icon?: string | null;
+  color?: string | null;
+  description?: string | null;
+  sort_order?: number;
+}): Promise<DatabaseSubject | null> {
+  const sort = data.sort_order ?? 999;
+  const rows = await sql`
+    INSERT INTO subjects (name, slug, icon, color, description, sort_order)
+    VALUES (${data.name}, ${data.slug}, ${data.icon ?? null}, ${data.color ?? null}, ${data.description ?? null}, ${sort})
+    RETURNING *
+  `;
+  return (rows[0] as DatabaseSubject) ?? null;
+}
+
+export async function updateSubject(id: string, data: {
+  name?: string;
+  slug?: string;
+  icon?: string | null;
+  color?: string | null;
+  description?: string | null;
+  sort_order?: number;
+}): Promise<DatabaseSubject | null> {
+  const rows = await sql`
+    UPDATE subjects SET
+      name = COALESCE(${data.name ?? null}, name),
+      slug = COALESCE(${data.slug ?? null}, slug),
+      icon = ${data.icon !== undefined ? data.icon : sql`icon`},
+      color = ${data.color !== undefined ? data.color : sql`color`},
+      description = ${data.description !== undefined ? data.description : sql`description`},
+      sort_order = COALESCE(${data.sort_order ?? null}, sort_order)
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return (rows[0] as DatabaseSubject) ?? null;
+}
+
+export async function deleteSubject(id: string): Promise<boolean> {
+  const rows = await sql`DELETE FROM subjects WHERE id = ${id} RETURNING id`;
+  return rows.length > 0;
+}
+
+// ===================== ADMIN: GRADE MANAGEMENT =====================
+
+export async function createGrade(data: {
+  name: string;
+  slug: string;
+  level: number;
+  sort_order?: number;
+}): Promise<DatabaseGrade | null> {
+  const sort = data.sort_order ?? 999;
+  const rows = await sql`
+    INSERT INTO grades (name, slug, level, sort_order)
+    VALUES (${data.name}, ${data.slug}, ${data.level}, ${sort})
+    RETURNING *
+  `;
+  return (rows[0] as DatabaseGrade) ?? null;
+}
+
+export async function updateGrade(id: string, data: {
+  name?: string;
+  slug?: string;
+  level?: number;
+  sort_order?: number;
+}): Promise<DatabaseGrade | null> {
+  const rows = await sql`
+    UPDATE grades SET
+      name = COALESCE(${data.name ?? null}, name),
+      slug = COALESCE(${data.slug ?? null}, slug),
+      level = COALESCE(${data.level ?? null}, level),
+      sort_order = COALESCE(${data.sort_order ?? null}, sort_order)
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return (rows[0] as DatabaseGrade) ?? null;
+}
+
+export async function deleteGrade(id: string): Promise<boolean> {
+  const rows = await sql`DELETE FROM grades WHERE id = ${id} RETURNING id`;
+  return rows.length > 0;
+}
+
+// ===================== ADMIN: STREAM MANAGEMENT =====================
+
+export async function createStream(data: {
+  name: string;
+  slug: string;
+  sort_order?: number;
+}): Promise<DatabaseStream | null> {
+  const sort = data.sort_order ?? 999;
+  const rows = await sql`
+    INSERT INTO streams (name, slug, sort_order)
+    VALUES (${data.name}, ${data.slug}, ${sort})
+    RETURNING *
+  `;
+  return (rows[0] as DatabaseStream) ?? null;
+}
+
+export async function updateStream(id: string, data: {
+  name?: string;
+  slug?: string;
+  sort_order?: number;
+}): Promise<DatabaseStream | null> {
+  const rows = await sql`
+    UPDATE streams SET
+      name = COALESCE(${data.name ?? null}, name),
+      slug = COALESCE(${data.slug ?? null}, slug),
+      sort_order = COALESCE(${data.sort_order ?? null}, sort_order)
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return (rows[0] as DatabaseStream) ?? null;
+}
+
+export async function deleteStream(id: string): Promise<boolean> {
+  const rows = await sql`DELETE FROM streams WHERE id = ${id} RETURNING id`;
+  return rows.length > 0;
+}
+
+// ===================== ADMIN: CATEGORY MANAGEMENT =====================
+
+export async function createCategory(data: {
+  name: string;
+  slug: string;
+  description?: string | null;
+  icon?: string | null;
+  sort_order?: number;
+}): Promise<DatabaseCategory | null> {
+  const sort = data.sort_order ?? 999;
+  const rows = await sql`
+    INSERT INTO categories (name, slug, description, icon, sort_order)
+    VALUES (${data.name}, ${data.slug}, ${data.description ?? null}, ${data.icon ?? null}, ${sort})
+    RETURNING *
+  `;
+  return (rows[0] as DatabaseCategory) ?? null;
+}
+
+export async function updateCategory(id: string, data: {
+  name?: string;
+  slug?: string;
+  description?: string | null;
+  icon?: string | null;
+  sort_order?: number;
+}): Promise<DatabaseCategory | null> {
+  const rows = await sql`
+    UPDATE categories SET
+      name = COALESCE(${data.name ?? null}, name),
+      slug = COALESCE(${data.slug ?? null}, slug),
+      description = ${data.description !== undefined ? data.description : sql`description`},
+      icon = ${data.icon !== undefined ? data.icon : sql`icon`},
+      sort_order = COALESCE(${data.sort_order ?? null}, sort_order)
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return (rows[0] as DatabaseCategory) ?? null;
+}
+
+export async function deleteCategory(id: string): Promise<boolean> {
+  const rows = await sql`DELETE FROM categories WHERE id = ${id} RETURNING id`;
+  return rows.length > 0;
+}
